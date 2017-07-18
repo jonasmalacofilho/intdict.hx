@@ -1,0 +1,7 @@
+-lib vehjo
+-cp lib
+-cp test
+--remap jonas:vehjo
+-main Main
+-cs bin/cs
+
