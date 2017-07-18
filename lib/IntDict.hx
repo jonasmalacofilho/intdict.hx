@@ -50,10 +50,10 @@ class IntDict<T> {
  */
 	
 	// definitions
-	static inline var FILLED = 0;
-	static inline var FREE = -1;
-	static inline var DUMMY = 1;
-	static inline var BAD = -10;
+	static inline var FILLED = 0x00;
+	static inline var FREE = 0x10;
+	static inline var DUMMY = 0x01;
+	static inline var BAD = 0x11;
 	static inline var START_SIZE = 8;
 	static inline var PROBE_A = 5; // from Python 3.2.3 (doc/dictobject.c::93)
 	static inline var PROBE_B = 2; // from Python 3.2.3 (doc/dictobject.c::357)
@@ -468,7 +468,7 @@ class IntDict<T> {
 	}
 
 	inline function alloc( m : Int ) {
-		s = [];
+		s = new packhx.IntArray(2, false);
 		k = [];
 		v = [];
 		for ( i in new RevIntIterator( m, 0 ) )
@@ -539,7 +539,7 @@ class IntDict<T> {
 		var bsize = size;
 		// alloc the new table
 		alloc( m );
-		size = BAD; // hack to avoid shrinkage during reinsertion
+		size = -1; // hack to avoid shrinkage during reinsertion
 		// reinsert
 		for ( i in 0...bsize )
 			if ( bs[i] == FILLED )
