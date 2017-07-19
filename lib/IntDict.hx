@@ -68,8 +68,8 @@ class IntDict<T> {
 
 	// structural fields & state
 	var s : Array<Int>; // state table
-	var k : Array<Int>; // key table
-	var v : Array<T>; // value table
+	var k : haxe.ds.Vector<Int>; // key table
+	var v : haxe.ds.Vector<T>; // value table
 	var size : Int; // table size; while resizing, this is set to BAD to avoid shrinkage
 	var mask : Int; // size - 1, or mask for optimizing x mod size = x & ( size - 1 )
 	public var length( default, null ) : Int;
@@ -469,16 +469,10 @@ class IntDict<T> {
 
 	inline function alloc( m : Int ) {
 		s = new packhx.IntArray(2, false);
-		k = [];
-		v = [];
+		k = new haxe.ds.Vector(m);
+		v = new haxe.ds.Vector(m);
 		for ( i in new RevIntIterator( m, 0 ) )
 			s[i] = FREE;
-		k[m - 1] = 0;
-		#if neko
-		v[m - 1] = null;
-		#else
-		v[m - 1] = cast null;
-		#end
 		mask = m - 1;
 		size = m;
 		length = 0;
