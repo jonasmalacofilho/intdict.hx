@@ -2,7 +2,37 @@ import haxe.Timer;
 import jonas.unit.TestCase;
 
 class IntDictTests extends TestCase {
+#if benchmark
+	@description( 'current implementation benchmark' )
+	public function testBenchmark1() {
+		var startTime = Timer.stamp();
+		var t = new IntDict();
+		t.set( 7, 10 );
+		while ( t.length < 64 * 1024 ) {
+			var len = t.length;
+			var k = ( -1212 + 2723 * len ) | 7;
+			t.set( k, len );
+		}
+		trace( 'Current implementation took: ' + ( Timer.stamp() - startTime ) );
+		assertTrue(true);
+	}
 	
+	@description( 'reference benchmark' )
+	public function testRefBenchmark1() {
+		var startTime = Timer.stamp();
+		var t = new haxe.ds.IntMap();
+		var len = 0;
+		t.set( 7, 10 );
+		len++;
+		while ( len < 64 * 1024 ) {
+			var k = ( -1212 + 2723 * len ) | 7;
+			t.set( k, len );
+			len++;
+		}
+		trace( 'Std version took: ' + ( Timer.stamp() - startTime ) );
+		assertTrue(true);
+	}
+#else
 	@description( '2 keys' )
 	public function test2Keys1() {
 		var t = new IntDict();
@@ -50,35 +80,6 @@ class IntDictTests extends TestCase {
 		}
 		//trace( t );
 		//trace( 'Current implementation took: ' + ( Timer.stamp() - startTime ) );
-	}
-	
-	@description( 'current implementation benchmark' )
-	public function testBenchmark1() {
-		var startTime = Timer.stamp();
-		var t = new IntDict();
-		t.set( 7, 10 );
-		while ( t.length < 64 * 1024 ) {
-			var len = t.length;
-			var k = ( -1212 + 2723 * len ) | 7;
-			t.set( k, len );
-		}
-		trace( 'Current implementation took: ' + ( Timer.stamp() - startTime ) );
-	}
-	
-	@description( 'reference benchmark' )
-	public function testRefBenchmark1() {
-		var startTime = Timer.stamp();
-		var t = new haxe.ds.IntMap();
-		var length = 0;
-		t.set( 7, 10 );
-		length++;
-		while ( length < 64 * 1024 ) {
-			var len = length;
-			var k = ( -1212 + 2723 * len ) | 7;
-			t.set( k, len );
-			length++;
-		}
-		trace( 'Std version took: ' + ( Timer.stamp() - startTime ) );
 	}
 	
 	@description( 'unset keys because of cache' )
@@ -176,6 +177,6 @@ class IntDictTests extends TestCase {
 		assertEquals( 0, t.length );
 		assertFalse( t.exists( 0 ) );
 	}
-	
+#end
 }
 

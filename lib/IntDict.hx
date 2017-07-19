@@ -525,7 +525,7 @@ class IntDict<T> {
 			}
 	}
 	
-	inline function doResize( m : Int ) {
+	function doResize( m : Int ) {
 		// backup the current table
 		var bs = s;
 		var bk = k;
