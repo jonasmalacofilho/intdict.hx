@@ -9,7 +9,7 @@
 --macro instrument.TimeCalls.hijack("IntDict")
 # note: the following call requires `return 0;` to be added to the bottom of
 # packhx.IntArray.get_length
---macro instrument.TimeCalls.hijack("packhx")
+# --macro instrument.TimeCalls.hijack("packhx")
 # --macro instrument.TraceCalls.hijack("IntDict")
 # --macro instrument.TraceCalls.hijack("IntDictTests")
 # -D no-inline
