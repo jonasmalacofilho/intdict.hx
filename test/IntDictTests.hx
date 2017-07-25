@@ -7,11 +7,13 @@ class IntDictTests extends TestCase {
 	public function testBenchmark1() {
 		var startTime = Timer.stamp();
 		var t = new IntDict();
+		var len = 0;
 		t.set( 7, 10 );
-		while ( t.length < 64 * 1024 ) {
-			var len = t.length;
+		len++;
+		while ( len < 64 * 1024 ) {
 			var k = ( -1212 + 2723 * len ) | 7;
 			t.set( k, len );
+			len++;
 		}
 		trace( 'Current implementation took: ' + ( Timer.stamp() - startTime ) );
 		assertTrue(true);
