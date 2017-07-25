@@ -50,10 +50,10 @@ class IntDict<T> {
  */
 	
 	// definitions
-	static inline var FILLED = 0x00;
-	static inline var FREE = 0x10;
-	static inline var DUMMY = 0x01;
-	static inline var BAD = 0x11;
+	static inline var FILLED = 0;
+	static inline var FREE = 3;
+	static inline var DUMMY = 1;
+	static inline var BAD = 2;
 	static inline var START_SIZE = 8;
 	static inline var PROBE_A = 5; // from Python 3.2.3 (doc/dictobject.c::93)
 	static inline var PROBE_B = 2; // from Python 3.2.3 (doc/dictobject.c::357)
@@ -67,7 +67,7 @@ class IntDict<T> {
 	static inline var MIN_LOAD_FACTOR_SMALL = MAX_LOAD_FACTOR / ( 1 << GROWTH_SHIFT_SMALL ) - .05;
 
 	// structural fields & state
-	var s : Array<Int>; // state table
+	var s : BitVector; // state table
 	var k : haxe.ds.Vector<Int>; // key table
 	var v : haxe.ds.Vector<T>; // value table
 	var size : Int; // table size; while resizing, this is set to BAD to avoid shrinkage
@@ -468,7 +468,7 @@ class IntDict<T> {
 	}
 
 	inline function alloc( m : Int ) {
-		s = new packhx.IntArray(2, false);
+		s = new BitVector(m);
 		k = new haxe.ds.Vector(m);
 		v = new haxe.ds.Vector(m);
 		for ( i in new RevIntIterator( m, 0 ) )
@@ -542,4 +542,26 @@ class IntDict<T> {
 	}
 }
 
-// ---- Temporary
+abstract BitVector(haxe.ds.Vector<Int>) {
+	inline public function new(size)
+	{
+		this = new haxe.ds.Vector(((size - 1) >> 4) + 1);
+	}
+
+	@:arrayAccess inline public function set(index:Int, value:Int):Int
+	{
+		var word = index >> 4;
+		var offset = (index & 15) << 1;
+		var clean = -1 ^ (3 << offset);
+		this[word] = (this[word] & clean) | (value << offset);
+		return value;
+	}
+
+	@:arrayAccess inline public function get(index:Int):Int
+	{
+		var word = index >> 4;
+		var offset = (index & 15) << 1;
+		return (this[word] & (3 << offset)) >> offset;
+	}
+}
+
