@@ -362,11 +362,15 @@ class IntDict<T> {
 		// not on cache, start doing table lookups
 		// first index
 		j = mod( key );
-		// initial perturbation
-		perturbInit( key );
+		var sj;
 		// probe until a FREE, DUMMY or equal key is found
-		while ( s[j] == FILLED && k[j] != key )
-			probe();
+		if (s[j] == FILLED && k[j] != key) {
+			// initial perturbation
+			perturbInit( key );
+			do {
+				probe();
+			} while (s[j] == FILLED && k[j] != key);
+		}
 		// if the key is not being replaced, increment length
 		if ( s[j] != FILLED )
 			length++;
@@ -531,13 +535,31 @@ class IntDict<T> {
 		var bk = k;
 		var bv = v;
 		var bsize = size;
+		var blength = length;
 		// alloc the new table
 		alloc( m );
-		size = -1; // hack to avoid shrinkage during reinsertion
-		// reinsert
-		for ( i in 0...bsize )
-			if ( bs[i] == FILLED )
-				set( bk[i], bv[i] );
+		// and reinsert
+		for ( i in 0...bsize ) {
+			if ( bs[i] == FILLED ) {
+				var key = bk[i];
+				var value = bv[i];
+				// the following has been inlined and optimized from set
+				j = mod(key);
+				if (s[j] == FILLED && k[j] != key) {
+					perturbInit( key );
+					do {
+						probe();
+					} while (s[j] == FILLED && k[j] != key);
+				}
+				s[j] = FILLED;
+				k[j] = key;
+				v[j] = value;
+			}
+		}
+		// clean the cache
+		clearCache();
+		// restore length and update size
+		length = blength;
 		size = m;
 	}
 }
