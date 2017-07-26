@@ -475,8 +475,7 @@ class IntDict<T> {
 		s = new BitVector(m);
 		k = new haxe.ds.Vector(m);
 		v = new haxe.ds.Vector(m);
-		for ( i in new RevIntIterator( m, 0 ) )
-			s[i] = FREE;
+		s.reset(FREE);
 		mask = m - 1;
 		size = m;
 		length = 0;
@@ -568,6 +567,16 @@ abstract BitVector(haxe.ds.Vector<Int>) {
 	inline public function new(size)
 	{
 		this = new haxe.ds.Vector(((size - 1) >> 4) + 1);
+	}
+
+	inline public function reset(value:Int):Int
+	{
+		var fill = value;
+		for (pos in 1...16)
+			fill |= value << pos << pos;
+		for (i in 0...this.length)
+			this[i] = fill;
+		return value;
 	}
 
 	@:arrayAccess inline public function set(index:Int, value:Int):Int
