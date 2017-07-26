@@ -483,27 +483,10 @@ class IntDict<T> {
 	}
 	
 	inline function perturbInit( hash : Int ) {
-		perturb = hash > 0 ? hash : - ( hash + 1 );
 	}
 	
 	inline function probe() {
-		#if debug
-		probeCount++;
-		#end
-		#if js
-		// may fail if PROBE_A * j + perturb becames too large
-		// solution is to enclose everything before mod (and possibly <<) in Std.int()
-		// adapted from Python 3.2.3 (doc/dictobject.c::93)
-		//j = mod( PROBE_A * j + 1 + perturb );
-		// adapted from Python 3.2.3 (code/dictobject.c::357)
-		j = mod( ( j << PROBE_B ) + j + 1 + perturb );
-		#else
-		// adapted from Python 3.2.3 (doc/dictobject.c::93)
-		//j = mod( PROBE_A * j + 1 + perturb );
-		// adapted from Python 3.2.3 (code/dictobject.c::357)
-		j = mod( ( j << PROBE_B ) + j + 1 + perturb ); 
-		#end
-		perturb >>= PERTURB_SHIFT;
+		j = mod(j + 1);
 	}
 	
 	inline function clearCache() {
