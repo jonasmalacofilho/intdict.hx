@@ -556,7 +556,7 @@ abstract BitVector(haxe.ds.Vector<Int>) {
 	{
 		var fill = value;
 		for (pos in 1...16)
-			fill |= value << pos << pos;
+			fill |= value << (pos << 1);
 		for (i in 0...this.length)
 			this[i] = fill;
 		return value;
