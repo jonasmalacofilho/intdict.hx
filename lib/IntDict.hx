@@ -4,60 +4,48 @@ import jonas.RevIntIterator;
 
 /*
  * Open addressing hash table
- * Copyright (c) 2012 Jonas Malaco Filho
+ * Copyright (c) 2012,2017 Jonas Malaco Filho
  * Licensed under the MIT license. Check LICENSE.txt for more information.
  */
 class IntDict<T> {
 /*
  * Some notes on IntDict:
- * 
+ *
  * This is obviously NOT threadsafe (because of caches). Also, during any iteration, the only safe
  * updating operation is remove (since it won't shrink the table). Set can trigger growth or shrinkage
- * and completely change the whole table. Even set on existing keys can still trigger shrinkage. 
- * 
+ * and completely change the whole table. Even set on existing keys can still trigger shrinkage.
+ *
  * The collsion resolving is done though open addressing.
- * 
+ *
  * An Integer is its own hash value.
- * 
+ *
  * State, key and value are stored in separe arrays. This is more economical (less memory consumption
  * or calls to new) but has bad cache locality.
- * 
+ *
  * An entry [i] in the table may be in one of the following states:
  *   - FILLED: the entry exists
  *   - FREE: the entry does not exist and no further probing is necessary
  *   - DUMMY: there was something here, should keep probing
- * 
+ *
  * The cache can be in one of the following states:
  *   - FILLED: the key exists; safe for set/remove
  *   - FREE: the key does not exists, AND the cache index points to the first lookup index;
  *           safe for set/remove
  *   - DUMMY: the key does not exists, but nothing else is sure; UNSAFE for set/remove
- * 
+ *
  * There also is another state (BAD) used by probeCount(debug only) and cache.
- * Both cache and probeCoun should be ignored if on state==BAD.
- * 
- * Probing sequence was adapted from Python 3.2.3. It has been simplified (code wise) and
- * does not depend on unsigned (logical) right shifts.
- *     // initial, use j as lookup index:
- *     j = hash mod size
- *     perturb = hash > 0 ? hash : - ( hash + 1 )
- *     // collision resolving:
- *     j = ( ( j << 2 ) + j + 1 + perturb ) mod size
- *     perturb >> 5
- * 
- * TODO:
- *   - more test cases (including performance test cases)
+ * Both cache and probeCount should be ignored if on state==BAD.
  */
-	
+
 	// definitions
 	static inline var FILLED = 0;
 	static inline var FREE = 3;
 	static inline var DUMMY = 1;
 	static inline var BAD = 2;
 	static inline var START_SIZE = 8;
-	static inline var PROBE_A = 5; // from Python 3.2.3 (doc/dictobject.c::93)
-	static inline var PROBE_B = 2; // from Python 3.2.3 (doc/dictobject.c::357)
-	static inline var PERTURB_SHIFT = 5; // from Python
+	// static inline var PROBE_A = 5; // from Python 3.2.3 (doc/dictobject.c::93)
+	// static inline var PROBE_B = 2; // from Python 3.2.3 (doc/dictobject.c::357)
+	// static inline var PERTURB_SHIFT = 5; // from Python
 	static inline var GROWTH_SHIFT = 1; // 2**GROWTH_SHIFT = 2
 	static inline var GROWTH_SHIFT_SMALL = 2; // 2**GROWTH_SHIFT = 4
 	static inline var GROWTH_SMALL = 8192;
@@ -73,15 +61,15 @@ class IntDict<T> {
 	var size : Int; // table size; while resizing, this is set to BAD to avoid shrinkage
 	var mask : Int; // size - 1, or mask for optimizing x mod size = x & ( size - 1 )
 	public var length( default, null ) : Int;
-	
+
 	// probing shared info
 	var j : Int; // current index, in range [0,size-1]
 	var perturb : Int; // hash based perturbation, always positive
-	
+
 	// cache (regarding current j value)
 	var cachedKey : Int;
 	var cachedState : Int;
-	
+
 	// debug information
 	#if debug
 	public var probeCount( default, null ) : Int;
@@ -93,13 +81,13 @@ class IntDict<T> {
 		probeCount = BAD;
 		#end
 	}
-	
+
 // ---- Public API
 
 	public inline function loadFactor() : Float {
 		return length / size;
 	}
-	
+
 	public function iterator() : Iterator<T> {
 		var i = 0;
 		return {
@@ -116,7 +104,7 @@ class IntDict<T> {
 			}
 		};
 	}
-	
+
 	public function keys() : Iterator<Int> {
 		var i = 0;
 		return {
@@ -133,7 +121,7 @@ class IntDict<T> {
 			}
 		};
 	}
-	
+
 	public function toString() : String {
 		var b = new StringBuf();
 		b.add( '{ ' );
@@ -171,10 +159,10 @@ class IntDict<T> {
 		#end
 		return b.toString();
 	}
-	
+
 	// check if key exists in the dictionary
 	public function exists( key : Int ) : Bool {
-		
+
 		// attempt to fetch the answer from the cache
 		// if the cache is not BAD and the cache key matches the input,
 		// than the cache state will be one of the folling, depending if the key:
@@ -188,11 +176,11 @@ class IntDict<T> {
 			#end
 			return cachedState == FILLED;
 		}
-		
+
 		#if debug
 		probeCount = 0;
 		#end
-		
+
 		// start to lookup the table
 		// start on index = hash mod size
 		j = mod( key ); // Int hashes to itself
@@ -203,19 +191,19 @@ class IntDict<T> {
 			cachedState = FILLED;
 			return true;
 		}
-		
+
 		// if the slot is marked as free, can stop, update the cache and return false (not found)
 		if ( s[j] == FREE ) {
 			cachedKey = key;
 			cachedState = FREE;
 			return false;
 		}
-		
+
 		// did not find the key in the initial index
 		// will execute the probing sequence
 		// but first, prepare the perturbation
 		perturbInit( key );
-		
+
 		// begin probing
 		// get the first new index
 		probe();
@@ -235,19 +223,19 @@ class IntDict<T> {
 			probe();
 			sj = s[j];
 		}
-		
+
 		// did not find anything
 		cachedKey = key;
 		cachedState = DUMMY;
 		return false;
 	}
-	
+
 	// get value for key
 	// if the key does not exists, returns cast null
 	// should always use exists( k ) before get( k ) if there is no garantee that
 	// the k exists in the dictionary; using so will NOT result in two lookups
 	public function get( key : Int ) : T {
-		
+
 		// attempt to fetch the answer from the cache
 		// if the cache is not BAD and the cache key matches the input,
 		// than the cache state will be one of the folling, depending if the key:
@@ -268,11 +256,11 @@ class IntDict<T> {
 				return cast null;
 				#end
 		}
-		
+
 		#if debug
 		probeCount = 0;
 		#end
-		
+
 		// start to lookup the table
 		// start on index = hash mod size
 		j = mod( key ); // Int hashes to itself
@@ -283,7 +271,7 @@ class IntDict<T> {
 			cachedState = FILLED;
 			return v[j];
 		}
-		
+
 		// if the slot is marked as free, can stop, update the cache and return null (not found)
 		if ( s[j] == FREE ) {
 			cachedKey = key;
@@ -294,12 +282,12 @@ class IntDict<T> {
 			return cast null;
 			#end
 		}
-		
+
 		// did not find the key in the initial index
 		// will execute the probing sequence
 		// but first, prepare the perturbation
 		perturbInit( key );
-		
+
 		// begin probing
 		// get the first new index
 		probe();
@@ -319,7 +307,7 @@ class IntDict<T> {
 			probe();
 			sj = s[j];
 		}
-		
+
 		// did not find anything
 		cachedKey = key;
 		cachedState = DUMMY;
@@ -329,12 +317,12 @@ class IntDict<T> {
 		return cast null;
 		#end
 	}
-	
+
 	// set value corresponding to key
 	// if the key already exists, it's value is replaced
 	// returns the same value
 	public function set( key : Int, value : T ) : T {
-		
+
 		// check if the cache has usefull information
 		// if the cache is not BAD and the cache key matches the input,
 		// than the cache state will be one of the folling, depending if the key:
@@ -354,11 +342,11 @@ class IntDict<T> {
 			cachedState = FILLED;
 			return value;
 		}
-		
+
 		#if debug
 		probeCount = 0;
 		#end
-		
+
 		// not on cache, start doing table lookups
 		// first index
 		j = mod( key );
@@ -382,12 +370,12 @@ class IntDict<T> {
 		resizeIfNeeded();
 		return value;
 	}
-	
+
 	// remove key from the dictionary
 	// it consists in setting the slot to DUMMY
 	// will not shrink the table (that is only possible on set)
 	public function remove( key : Int ) : Bool {
-		
+
 		// attempt to use the cache
 		// if the cache is not BAD and the cache key matches the input,
 		// than the cache state will be one of the folling, depending if the key:
@@ -408,11 +396,11 @@ class IntDict<T> {
 			else
 				return false;
 		}
-		
+
 		#if debug
 		probeCount = 0;
 		#end
-		
+
 		// start to lookup the table
 		// start on index = hash mod size
 		j = mod( key ); // Int hashes to itself
@@ -425,19 +413,19 @@ class IntDict<T> {
 			length--;
 			return true;
 		}
-		
+
 		// if the slot is marked as free, can stop, update the cache and return false (not removed)
 		if ( s[j] == FREE ) {
 			cachedKey = key;
 			cachedState = FREE;
 			return false;
 		}
-		
+
 		// did not find the key in the initial index
 		// will execute the probing sequence
 		// but first, prepare the perturbation
 		perturbInit( key );
-		
+
 		// begin probing
 		// get the first new index
 		probe();
@@ -458,13 +446,13 @@ class IntDict<T> {
 			probe();
 			sj = s[j];
 		}
-		
+
 		// did not find anything
 		cachedKey = key;
 		cachedState = DUMMY;
 		return false;
 	}
-	
+
 // ---- Helper API
 
 	inline function mod( x : Int ) : Int {
@@ -481,18 +469,21 @@ class IntDict<T> {
 		length = 0;
 		clearCache();
 	}
-	
+
 	inline function perturbInit( hash : Int ) {
 	}
-	
+
 	inline function probe() {
+		#if debug
+		probeCount++;
+		#end
 		j = mod(j + 1);
 	}
-	
+
 	inline function clearCache() {
 		cachedState = BAD;
 	}
-	
+
 	inline function resizeIfNeeded() {
 		var alpha = loadFactor();
 		//trace( [ length, size, Std.int( alpha * 100 ) ] );
@@ -510,7 +501,7 @@ class IntDict<T> {
 				doResize( size >> GROWTH_SHIFT );
 			}
 	}
-	
+
 	function doResize( m : Int ) {
 		// backup the current table
 		var bs = s;
