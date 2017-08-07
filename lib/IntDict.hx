@@ -55,8 +55,7 @@ class IntDict<T> {
 	static inline var MIN_LOAD_FACTOR_SMALL = MAX_LOAD_FACTOR / ( 1 << GROWTH_SHIFT_SMALL ) - .05;
 
 	// structural fields & state
-	var s : BitVector; // state table
-	var k : haxe.ds.Vector<Int>; // key table
+	var ks : KeyStateTable; // key–state table
 	var v : haxe.ds.Vector<T>; // value table
 	var size : Int; // table size; while resizing, this is set to BAD to avoid shrinkage
 	var mask : Int; // size - 1, or mask for optimizing x mod size = x & ( size - 1 )
@@ -93,7 +92,7 @@ class IntDict<T> {
 		return {
 			hasNext : function() {
 				for ( j in i...size )
-					if ( s[j] == FILLED ) {
+					if ( ks.getState(j) == FILLED ) {
 						i = j;
 						return true;
 					}
@@ -110,14 +109,14 @@ class IntDict<T> {
 		return {
 			hasNext : function() {
 				for ( j in i...size )
-					if ( s[j] == FILLED ) {
+					if ( ks.getState(j) == FILLED ) {
 						i = j;
 						return true;
 					}
 				return false;
 			},
 			next : function() {
-				return k[i++];
+				return ks.getKey(i++);
 			}
 		};
 	}
@@ -186,14 +185,14 @@ class IntDict<T> {
 		j = mod( key ); // Int hashes to itself
 		// if that slot contains a valid key-value pair, test the key
 		// if the key matches the input, update the cache and return true (found)
-		if ( s[j] == FILLED && k[j] == key ) {
+		if ( ks.getState(j) == FILLED && ks.getKey(j) == key ) {
 			cachedKey = key;
 			cachedState = FILLED;
 			return true;
 		}
 
 		// if the slot is marked as free, can stop, update the cache and return false (not found)
-		if ( s[j] == FREE ) {
+		if ( ks.getState(j) == FREE ) {
 			cachedKey = key;
 			cachedState = FREE;
 			return false;
@@ -207,7 +206,7 @@ class IntDict<T> {
 		// begin probing
 		// get the first new index
 		probe();
-		var sj = s[j]; // s[j] cache
+		var sj = ks.getState(j); // s[j] cache
 		// go over the probing sequence returned indices
 		// if a slot is free, return false
 		// else
@@ -215,13 +214,13 @@ class IntDict<T> {
 		//     (updating the cache)
 		//     else, get the next index
 		while ( sj != FREE ) {
-			if ( sj == FILLED && k[j] == key ) {
+			if ( sj == FILLED && ks.getKey(j) == key ) {
 				cachedKey = key;
 				cachedState = FILLED;
 				return true;
 			}
 			probe();
-			sj = s[j];
+			sj = ks.getState(j);
 		}
 
 		// did not find anything
@@ -266,14 +265,14 @@ class IntDict<T> {
 		j = mod( key ); // Int hashes to itself
 		// if that slot contains a valid key-value pair, test the key
 		// if the key matches the input, update the cache and return the value (found)
-		if ( s[j] == FILLED && k[j] == key ) {
+		if ( ks.getState(j) == FILLED && ks.getKey(j) == key ) {
 			cachedKey = key;
 			cachedState = FILLED;
 			return v[j];
 		}
 
 		// if the slot is marked as free, can stop, update the cache and return null (not found)
-		if ( s[j] == FREE ) {
+		if ( ks.getState(j) == FREE ) {
 			cachedKey = key;
 			cachedState = FREE;
 			#if neko
@@ -291,7 +290,7 @@ class IntDict<T> {
 		// begin probing
 		// get the first new index
 		probe();
-		var sj = s[j]; // s[j] cache
+		var sj = ks.getState(j); // s[j] cache
 		// go over the probing sequence returned indices
 		// if a slot is free, return false
 		// else
@@ -299,13 +298,13 @@ class IntDict<T> {
 		//     (updating the cache)
 		//     else, get the next index
 		while ( sj != FREE ) {
-			if ( sj == FILLED && k[j] == key ) {
+			if ( sj == FILLED && ks.getKey(j) == key ) {
 				cachedKey = key;
 				cachedState = FILLED;
 				return v[j];
 			}
 			probe();
-			sj = s[j];
+			sj = ks.getState(j);
 		}
 
 		// did not find anything
@@ -336,8 +335,8 @@ class IntDict<T> {
 			// if the key is not being replaced, increment length
 			if ( cachedState != FILLED )
 				length++;
-			s[j] = FILLED;
-			k[j] = key;
+			ks.setState(j, FILLED);
+			ks.setKey(j, key);
 			v[j] = value;
 			cachedState = FILLED;
 			return value;
@@ -352,18 +351,18 @@ class IntDict<T> {
 		j = mod( key );
 		var sj;
 		// probe until a FREE, DUMMY or equal key is found
-		if (s[j] == FILLED && k[j] != key) {
+		if (ks.getState(j) == FILLED && ks.getKey(j) != key) {
 			// initial perturbation
 			perturbInit( key );
 			do {
 				probe();
-			} while (s[j] == FILLED && k[j] != key);
+			} while (ks.getState(j) == FILLED && ks.getKey(j) != key);
 		}
 		// if the key is not being replaced, increment length
-		if ( s[j] != FILLED )
+		if ( ks.getState(j) != FILLED )
 			length++;
-		s[j] = FILLED;
-		k[j] = key;
+		ks.setState(j, FILLED);
+		ks.setKey(j, key);
 		v[j] = value;
 		cachedKey = key;
 		cachedState = FILLED;
@@ -388,7 +387,7 @@ class IntDict<T> {
 			probeCount = -1;
 			#end
 			if ( cachedState == FILLED ) {
-				s[j] = DUMMY;
+				ks.setState(j, DUMMY);
 				cachedState = DUMMY;
 				length--;
 				return true;
@@ -406,8 +405,8 @@ class IntDict<T> {
 		j = mod( key ); // Int hashes to itself
 		// if that slot contains a valid key-value pair, test the key
 		// if the key matches the input, remove it
-		if ( s[j] == FILLED && k[j] == key ) {
-			s[j] = DUMMY;
+		if ( ks.getState(j) == FILLED && ks.getKey(j) == key ) {
+			ks.setState(j, DUMMY);
 			cachedKey = key;
 			cachedState = DUMMY;
 			length--;
@@ -415,7 +414,7 @@ class IntDict<T> {
 		}
 
 		// if the slot is marked as free, can stop, update the cache and return false (not removed)
-		if ( s[j] == FREE ) {
+		if ( ks.getState(j) == FREE ) {
 			cachedKey = key;
 			cachedState = FREE;
 			return false;
@@ -429,22 +428,22 @@ class IntDict<T> {
 		// begin probing
 		// get the first new index
 		probe();
-		var sj = s[j]; // s[j] cache
+		var sj = ks.getState(j); // s[j] cache
 		// go over the probing sequence returned indices
 		// if a slot is free, return false
 		// else
 		//     if the key-value pair exists, check the key and if, it matches, remove it
 		//     else, get the next index
 		while ( sj != FREE ) {
-			if ( sj == FILLED && k[j] == key ) {
-				s[j] = DUMMY;
+			if ( sj == FILLED && ks.getKey(j) == key ) {
+				ks.setState(j, DUMMY);
 				cachedKey = key;
 				cachedState = DUMMY;
 				length--;
 				return true;
 			}
 			probe();
-			sj = s[j];
+			sj = ks.getState(j);
 		}
 
 		// did not find anything
@@ -460,10 +459,9 @@ class IntDict<T> {
 	}
 
 	inline function alloc( m : Int ) {
-		s = new BitVector(m);
-		k = new haxe.ds.Vector(m);
+		ks = new KeyStateTable(m);
 		v = new haxe.ds.Vector(m);
-		s.reset(FREE);
+		ks.reset(FREE);
 		mask = m - 1;
 		size = m;
 		length = 0;
@@ -504,8 +502,7 @@ class IntDict<T> {
 
 	function doResize( m : Int ) {
 		// backup the current table
-		var bs = s;
-		var bk = k;
+		var bks = ks;
 		var bv = v;
 		var bsize = size;
 		var blength = length;
@@ -513,19 +510,19 @@ class IntDict<T> {
 		alloc( m );
 		// and reinsert
 		for ( i in 0...bsize ) {
-			if ( bs[i] == FILLED ) {
-				var key = bk[i];
+			if ( bks.getState(i) == FILLED ) {
+				var key = bks.getKey(i);
 				var value = bv[i];
 				// the following has been inlined and optimized from set
 				j = mod(key);
-				if (s[j] == FILLED && k[j] != key) {
+				if (ks.getState(j) == FILLED && ks.getKey(j) != key) {
 					perturbInit( key );
 					do {
 						probe();
-					} while (s[j] == FILLED && k[j] != key);
+					} while (ks.getState(j) == FILLED && ks.getKey(j) != key);
 				}
-				s[j] = FILLED;
-				k[j] = key;
+				ks.setState(j, FILLED);
+				ks.setKey(j, key);
 				v[j] = value;
 			}
 		}
@@ -537,10 +534,22 @@ class IntDict<T> {
 	}
 }
 
-abstract BitVector(haxe.ds.Vector<Int>) {
+/*
+	 STATE KEY KEY KEY ... KEY KEY KEY STATE KEY ...
+
+	 State:
+
+	 0-15: 0
+	 16-31: 17
+	 32-47: 34
+	 48-63: 51
+	 64-75: 68
+*/
+abstract KeyStateTable(haxe.ds.Vector<Int>) {
 	inline public function new(size)
 	{
-		this = new haxe.ds.Vector(((size - 1) >> 4) + 1);
+		var stateSize = ((size - 1) >> 4) + 1;
+		this = new haxe.ds.Vector(size + stateSize);
 	}
 
 	inline public function reset(value:Int):Int
@@ -548,25 +557,42 @@ abstract BitVector(haxe.ds.Vector<Int>) {
 		var fill = value;
 		for (pos in 1...16)
 			fill |= value << (pos << 1);
-		for (i in 0...this.length)
+		var i = 0;
+		do {
 			this[i] = fill;
+			i += 17;
+		} while(i < this.length);
 		return value;
 	}
 
-	@:arrayAccess inline public function set(index:Int, value:Int):Int
+	inline public function getState(index:Int):Int
 	{
-		var word = index >> 4;
+		var bucket = index >> 4;
+		var word = (bucket << 4) + bucket;
+		var offset = (index & 15) << 1;
+		return (this[word] & (3 << offset)) >> offset;
+	}
+
+	inline public function setState(index:Int, value:Int):Int
+	{
+		var bucket = index >> 4;
+		var word = (bucket << 4) + bucket;
 		var offset = (index & 15) << 1;
 		var clean = -1 ^ (3 << offset);
 		this[word] = (this[word] & clean) | (value << offset);
 		return value;
 	}
 
-	@:arrayAccess inline public function get(index:Int):Int
+	inline public function getKey(index:Int):Int
 	{
-		var word = index >> 4;
-		var offset = (index & 15) << 1;
-		return (this[word] & (3 << offset)) >> offset;
+		var bucket = index >> 4;
+		return this[index + bucket + 1];
+	}
+
+	inline public function setKey(index:Int, value:Int):Int
+	{
+		var bucket = index >> 4;
+		return this[index + bucket + 1] = value;
 	}
 }
 
